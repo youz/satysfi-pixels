@@ -1,0 +1,30 @@
+@require: stdja
+@import: pixels
+
+let bit-xor =
+  let-rec itr b acc x y =
+    if x == 0 && y == 0 then
+      acc
+    else
+      let bx = x mod 2 in
+      let by = y mod 2 in
+      let cb = if bx + by == 1 then 1 else 0 in
+        itr (b * 2) (acc + cb * b) (x / 2) (y  / 2)
+  in
+    itr 1 0
+
+let get-color x y =
+  let v = bit-xor x y in
+    Gray(float v /. 255.)
+
+in
+document (|
+  title = {XOR};
+  author = {};
+  show-title = false;
+  show-toc = false;
+|) '<
+  +p {
+    \Pixels((100pt, 100pt, 0pt))((256, 256))(get-color);
+  }
+>

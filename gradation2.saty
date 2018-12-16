@@ -1,0 +1,20 @@
+@require: stdja
+@import: pixels
+
+let get-color x y =
+  let r = x mod 256 in
+  let g = y mod 256 in
+  let b = 255 - (x mod 256) in
+    RGB(float r /. 255., float g /. 255., float b /. 255.)
+
+in
+document (|
+  title = {gradation sample 2};
+  author = {};
+  show-title = false;
+  show-toc = false;
+|) '<
+  +p{
+    \Pixels((100pt, 100pt, 0pt))((512, 512))(get-color);
+  }
+>

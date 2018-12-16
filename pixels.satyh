@@ -1,0 +1,48 @@
+
+module Pixels : sig
+
+  direct \Pixels : [length * length * length; int * int; int -> int -> color] inline-cmd
+
+end = struct
+
+  let square left bottom width height col =
+    let right = left +' width in
+    let top = bottom +' height in
+    let p = start-path (left, bottom)
+            |> line-to (right, bottom)
+            |> line-to (right, top)
+            |> line-to (left, top)
+            |> close-with-line
+    in
+      fill col p
+
+  let scale min max len v =
+    let w = float (max - min) in
+      len *' (float (v - min) /. w)
+
+  let-inline ctx \Pixels (w, h, d) (wpx, hpx) colorf =
+    let scx = scale 0 wpx w in
+    let scy = scale 0 hpx h in
+    let pixw = scx 1 in
+    let pixh = scy 1 in
+    let render (ox, oy) =
+      let plot x y =
+        let left = (scx x) +' ox in
+        let bottom = (scy y) +' oy in
+          square left bottom pixw pixh (colorf x y)
+      in
+      let-rec itr x y a =
+        if y == hpx then a
+        else
+          let (nx, ny) =
+            if x + 1 == wpx then
+              (0, y + 1)
+            else 
+              (x + 1, y)
+          in
+            itr nx ny ((plot x y) :: a)
+      in
+        itr 0 0 []
+    in
+      inline-graphics w h d render
+end

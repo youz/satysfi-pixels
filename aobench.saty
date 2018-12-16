@@ -1,0 +1,276 @@
+@require: stdja
+@require: list
+@import: pixels
+
+% ported from http://raytracing.hatenablog.com/entry/20110625/1309114394
+
+% Constant numbers
+let width = 256
+let height = 256
+let nsubsamples = 2
+
+let nao-samples = 8
+let pi = 4.0 *. atan 1.0
+let largef = 10000000000000000.
+let smallf = 1. /. largef
+
+% Types
+type vec = (|
+  x : float;
+  y : float;
+  z : float;
+|)
+
+type hit-t =
+  | Hit
+  | NoHit
+
+type isect-t = (|
+  t : float;
+  p : vec;
+  n : vec;
+  hit : hit-t;
+|)
+
+type sphere-t = (|
+  center : vec;
+  radius : float;
+|)
+
+type plane-t = (|
+  pos : vec;
+  norm : vec;
+|)
+
+type ray-t = (|
+  org : vec;
+  dir : vec;
+|)
+
+% Global variables
+let zero-vec = (| x = 0.0; y = 0.0; z = 0.0 |)
+
+let sphere0 =
+  (| center = (| x = 0. -. 2.0; y = 0.0; z = 0. -. 3.5 |);
+     radius = 0.5 |)
+
+let  sphere1 =
+  (| center = (| x = 0. -. 0.5; y = 0.0; z = 0. -. 3.0 |);
+     radius = 0.5 |)
+
+let sphere2 =
+  (| center = (| x = 1.0; y = 0.0; z = 0. -. 2.2 |);
+     radius = 0.5 |)
+
+let plane =
+  (| pos = (| x = 0.0; y = 0. -. 0.5; z = 0.0 |);
+     norm = (| x = 0.0; y = 1.0; z = 0.0 |) |)
+
+% Functions
+let (>.) a b = (1pt *' a) >' (1pt *' b)
+let (<.) a b = (1pt *' a) <' (1pt *' b)
+
+let-mutable seed <- 1
+let random-float =
+  let a = 48271 in
+  let m = 2147483647 in
+  let fm = float m in
+  let q = m / a in
+  let r = m mod a in
+    fun f -> (
+      let hi = !seed / q in
+      let lo = !seed mod q in
+      let test = a * lo - r * hi in
+      let () = seed <- (if test > 0 then test else test + m)
+      in
+        (float !seed) *. f /. fm
+    )
+
+
+let abs-float f =
+  if 1pt *' f <' 0pt then
+    0. -. f
+  else 
+    f
+
+let sqrt f =
+  let r v = v -. ((v *. v -. f) /. (2. *. v))
+  in
+    f |> r |> r |> r
+
+let vdot v0 v1 =
+  v0#x *. v1#x +. v0#y *. v1#y +. v0#z *. v1#z
+
+let vcross v0 v1 =
+  (| x = v0#y *. v1#z -. v0#z *. v1#y;
+    y = v0#z *. v1#x -. v0#x *. v1#z;
+    z = v0#x *. v1#y -. v0#y *. v1#x |)
+
+let vnormalize c =
+  let len = sqrt (vdot c c) in
+    if (abs-float len) >. smallf then
+      (| x = c#x /. len; y = c#y /. len; z = c#z /. len |)
+    else
+      c
+
+let ray-sphere-intersect isect ray sphere =
+  let rs = 
+    (| x = ray#org#x -. sphere#center#x;
+       y = ray#org#y -. sphere#center#y;
+       z = ray#org#z -. sphere#center#z |) in
+  let b = vdot rs ray#dir in
+  let c = (vdot rs rs) -. sphere#radius *. sphere#radius in
+  let d = b *. b -. c in
+  let t = if d >. 0.0 then 0. -. b -. sqrt(d) else 0.0 in
+    if (t >. 0.0) && (t <. isect#t) then
+      let p = 
+	(| x = ray#org#x +. ray#dir#x *. t;
+	   y = ray#org#y +. ray#dir#y *. t;
+	   z = ray#org#z +. ray#dir#z *. t |) in
+      let n = 
+	(| x = p#x -. sphere#center#x;
+	   y = p#y -. sphere#center#y;
+	   z = p#z -. sphere#center#z |) in
+	(| t = t; p = p; n = vnormalize n; hit = Hit |)
+    else
+      isect
+
+let ray-plane-intersect isect ray plane =
+  let d = 0. -. (vdot plane#pos plane#norm) in
+  let v = vdot ray#dir plane#norm in
+  let t = if abs-float v >. smallf then 
+            0. -. ((vdot ray#org plane#norm) +. d) /. v
+          else
+            0.0
+  in
+    if (t >. 0.0) && (t <. isect#t) then
+      (| t = t;
+         p = (| x = ray#org#x +. ray#dir#x *. t;
+                y = ray#org#y +. ray#dir#y *. t;
+                z = ray#org#z +. ray#dir#z *. t|);
+         n = plane#norm;
+         hit = Hit
+      |)
+    else
+      isect
+
+let orthoBasis n =
+  let bas1 =
+    if (n#x <. 0.6) && (n#x >. (0. -. 0.6)) then
+      (| x = 1.0; y = 0.0; z = 0.0 |)
+    else if (n#y <. 0.6) && (n#y >. (0. -. 0.6)) then
+      (| x = 0.0; y = 1.0; z = 0.0 |)
+    else if (n#z <. 0.6) && (n#z >. (0. -. 0.6)) then
+      (| x = 0.0; y = 0.0; z = 1.0 |)
+    else
+      (| x = 1.0; y = 0.0; z = 0.0 |) in
+  let b0 = vcross bas1 n in
+  let bas0 = vnormalize b0 in
+  let b1 = vcross n bas0 in
+    (bas0, vnormalize b1, n)
+
+let ambient-occlusion isect =
+  let eps = 0.0001 in
+  let ntheta = nao-samples in
+  let nphi = nao-samples in
+  let p = 
+    (| x = isect#p#x +. eps *. isect#n#x;
+       y = isect#p#y +. eps *. isect#n#y;
+       z = isect#p#z +. eps *. isect#n#z |) in
+  let (bas0, bas1, bas2) = orthoBasis isect#n in
+  let nn = ntheta * nphi in
+  let-mutable occlusion <- 0.0 in
+  let-rec loop i =
+    if i == nn then
+      ((float nn) -. !occlusion) /. (float nn)
+    else
+      let theta = sqrt (random-float 1.0) in
+      let phi = 2.0 *. pi *. (random-float 1.0) in
+      let x = (cos phi) *. theta in
+      let y = (sin phi) *. theta in
+      let z = sqrt (1.0 -. theta *. theta) in
+      let rx = x *. bas0#x +. y *. bas1#x +. z *. bas2#x in
+      let ry = x *. bas0#y +. y *. bas1#y +. z *. bas2#y in
+      let rz = x *. bas0#z +. y *. bas1#z +. z *. bas2#z in
+      let ray =
+	(| org = p; dir = (| x = rx; y = ry; z = rz |) |) in
+      let occIsect =
+	(| t = largef; p = zero-vec; n = zero-vec; hit = NoHit |) in
+      let new-occIsect = ray-sphere-intersect occIsect ray sphere0 in
+      let new-occIsect = ray-sphere-intersect new-occIsect ray sphere1 in
+      let new-occIsect = ray-sphere-intersect new-occIsect ray sphere2 in
+      let new-occIsect = ray-plane-intersect new-occIsect ray plane in
+      let () = (match new-occIsect#hit with
+                | Hit -> occlusion <- !occlusion +. 1.0
+                | _   -> ())
+      in
+        loop (i + 1)
+  in
+  let o = loop 0 in
+    (| x = o; y = o; z = o |)
+
+let clamp f =
+  if f <. 0. then 0.
+  else if f >. 1.0 then 1.0
+  else f
+
+let aobench w h nsubsamples = 
+  let fw = float w in
+  let fh = float h in
+  let fnsubsamples = float nsubsamples in
+  let nnsamples = fnsubsamples *. fnsubsamples in
+  let-mutable r <- 0. in
+  let-mutable g <- 0. in
+  let-mutable b <- 0. in
+  fun x iy -> (
+    let y = h - iy in
+    let fy = float y in
+    let fx = float x in
+    let _ = r <- 0. in
+    let _ = g <- 0. in
+    let _ = b <- 0. in
+    let-rec itr v u =
+      if v == nsubsamples then
+        RGB(clamp (!r /. nnsamples),
+            clamp (!g /. nnsamples),
+            clamp (!b /. nnsamples))
+      else
+        let fv = float v in
+        let fu = float u in
+        let px = (fx +. (fu /. fnsubsamples) -. (fw /. 2.0)) /. (fw /. 2.0) in
+        let py = 0. -. (fy +. (fv /. fnsubsamples) -. (fh /. 2.0)) /. (fh /. 2.0) in
+        let ray =
+          (| org = zero-vec; 
+             dir = vnormalize (| x = px; y = py; z = 0. -. 1.0 |)|) in
+        let isect = 
+          (| t = largef; p = zero-vec; n = zero-vec; hit = NoHit |) in
+        let new-isect = ray-sphere-intersect isect ray sphere0 in
+        let new-isect = ray-sphere-intersect new-isect ray sphere1 in
+        let new-isect = ray-sphere-intersect new-isect ray sphere2 in
+        let new-isect = ray-plane-intersect new-isect ray plane in
+        let () = (match new-isect#hit with
+                  | Hit ->
+                    let col = ambient-occlusion new-isect in
+                    let () = r <- !r +. col#x in
+                    let () = g <- !g +. col#y in
+                             b <- !b +. col#z
+                  | _ -> ()) in
+          if u + 1 == nsubsamples then
+            itr (v + 1) 0
+          else
+            itr v (u + 1)
+    in
+      itr 0 0
+  )
+
+in
+document (|
+  title = {AOBench};
+  author = {};
+  show-title = false;
+  show-toc = false;
+|) '<
+  +p {
+    \Pixels((200pt, 200pt, 0pt))((width, height))(aobench width height nsubsamples);
+  }
+>

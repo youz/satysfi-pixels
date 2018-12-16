@@ -1,0 +1,28 @@
+@require: stdja
+@import: pixels
+
+let mandelbrot n x y =
+  let xc = (float (x - 200)) /. 100. in
+  let yc = (float (y - 100)) /. 100. in
+  let-rec r xn yn i =
+    if i == n then
+      0.
+    else if 1pt *' (xn *. xn +. yn *. yn) >' 4pt then
+      (float i) /. (float n)
+    else
+      r (xn *. xn -. yn *. yn +. xc) (2. *. xn *. yn +. yc) (i + 1)
+   in
+   let v = (r 0. 0. 0) in
+     RGB(0., v, v)
+
+in
+document (|
+  title = {Mandelbrot};
+  author = {};
+  show-title = false;
+  show-toc = false;
+|) '<
+  +p{
+    \Pixels((160pt, 100pt, 0pt))((320, 200))(mandelbrot 32);
+  }
+>

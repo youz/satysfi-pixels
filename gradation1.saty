@@ -1,0 +1,17 @@
+@require: stdja
+@import: pixels
+
+let get-color x y =
+  Gray(float x /. 255.)
+
+in
+document (|
+  title = {gradation sample 1};
+  author = {};
+  show-title = false;
+  show-toc = false;
+|) '<
+  +p{
+    \Pixels((100pt, 100pt, 0pt))((256, 256))(get-color);
+  }
+>
