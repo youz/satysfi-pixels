@@ -32,6 +32,8 @@ type isect-t = (|
   hit : hit-t;
 |)
 
+let is-hit isect = match isect#hit with Hit -> true | _ -> false
+
 type sphere-t = (|
   center : vec;
   radius : float;
@@ -103,8 +105,8 @@ let vdot v0 v1 =
 
 let vcross v0 v1 =
   (| x = v0#y *. v1#z -. v0#z *. v1#y;
-    y = v0#z *. v1#x -. v0#x *. v1#z;
-    z = v0#x *. v1#y -. v0#y *. v1#x |)
+     y = v0#z *. v1#x -. v0#x *. v1#z;
+     z = v0#x *. v1#y -. v0#y *. v1#x |)
 
 let vnormalize c =
   let len = sqrt (vdot c c) in
@@ -124,14 +126,14 @@ let ray-sphere-intersect isect ray sphere =
   let t = if d >. 0.0 then 0. -. b -. sqrt(d) else 0.0 in
     if (t >. 0.0) && (t <. isect#t) then
       let p = 
-	(| x = ray#org#x +. ray#dir#x *. t;
-	   y = ray#org#y +. ray#dir#y *. t;
-	   z = ray#org#z +. ray#dir#z *. t |) in
+        (| x = ray#org#x +. ray#dir#x *. t;
+           y = ray#org#y +. ray#dir#y *. t;
+           z = ray#org#z +. ray#dir#z *. t |) in
       let n = 
-	(| x = p#x -. sphere#center#x;
-	   y = p#y -. sphere#center#y;
-	   z = p#z -. sphere#center#z |) in
-	(| t = t; p = p; n = vnormalize n; hit = Hit |)
+        (| x = p#x -. sphere#center#x;
+           y = p#y -. sphere#center#y;
+           z = p#z -. sphere#center#z |) in
+        (| t = t; p = p; n = vnormalize n; hit = Hit |)
     else
       isect
 
@@ -192,17 +194,14 @@ let ambient-occlusion isect =
       let rx = x *. bas0#x +. y *. bas1#x +. z *. bas2#x in
       let ry = x *. bas0#y +. y *. bas1#y +. z *. bas2#y in
       let rz = x *. bas0#z +. y *. bas1#z +. z *. bas2#z in
-      let ray =
-	(| org = p; dir = (| x = rx; y = ry; z = rz |) |) in
-      let occIsect =
-	(| t = largef; p = zero-vec; n = zero-vec; hit = NoHit |) in
+      let ray = (| org = p; dir = (| x = rx; y = ry; z = rz |) |) in
+      let occIsect = (| t = largef; p = zero-vec; n = zero-vec; hit = NoHit |) in
       let new-occIsect = ray-sphere-intersect occIsect ray sphere0 in
       let new-occIsect = ray-sphere-intersect new-occIsect ray sphere1 in
       let new-occIsect = ray-sphere-intersect new-occIsect ray sphere2 in
       let new-occIsect = ray-plane-intersect new-occIsect ray plane in
-      let () = (match new-occIsect#hit with
-                | Hit -> occlusion <- !occlusion +. 1.0
-                | _   -> ())
+      let _ = if is-hit new-occIsect then occlusion <- !occlusion +. 1.0
+              else ()
       in
         loop (i + 1)
   in
@@ -248,13 +247,12 @@ let aobench w h nsubsamples =
         let new-isect = ray-sphere-intersect new-isect ray sphere1 in
         let new-isect = ray-sphere-intersect new-isect ray sphere2 in
         let new-isect = ray-plane-intersect new-isect ray plane in
-        let () = (match new-isect#hit with
-                  | Hit ->
-                    let col = ambient-occlusion new-isect in
-                    let () = r <- !r +. col#x in
-                    let () = g <- !g +. col#y in
-                             b <- !b +. col#z
-                  | _ -> ()) in
+        let _ = if is-hit new-isect then
+                  let col = ambient-occlusion new-isect in
+                  let () = r <- !r +. col#x in
+                  let () = g <- !g +. col#y in
+                           b <- !b +. col#z
+                else () in
           if u + 1 == nsubsamples then
             itr (v + 1) 0
           else
