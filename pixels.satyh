@@ -1,6 +1,8 @@
+@require: pervasives
 
 module Pixels : sig
 
+  val render-pixels : (length * length * length) -> (int * int) -> (int -> int -> color) -> point -> graphics list
   direct \Pixels : [length * length * length; int * int; int -> int -> color] inline-cmd
 
 end = struct
@@ -20,29 +22,31 @@ end = struct
     let w = float (max - min) in
       len *' (float (v - min) /. w)
 
-  let-inline ctx \Pixels (w, h, d) (wpx, hpx) colorf =
+  let render-pixels (w, h, d) (wpx, hpx) colorf (ox, oy) =
     let scx = scale 0 wpx w in
     let scy = scale 0 hpx h in
     let pixw = scx 1 in
     let pixh = scy 1 in
-    let render (ox, oy) =
-      let plot x y =
-        let left = (scx x) +' ox in
-        let bottom = (scy y) +' oy in
-          square left bottom pixw pixh (colorf x y)
-      in
-      let-rec itr x y a =
-        if y == hpx then a
-        else
-          let (nx, ny) =
-            if x + 1 == wpx then
-              (0, y + 1)
-            else 
-              (x + 1, y)
-          in
-            itr nx ny ((plot x y) :: a)
-      in
-        itr 0 0 []
+    let plot x y =
+      let left = (scx x) +' ox in
+      let bottom = (scy y) +' oy in
+        square left bottom pixw pixh (colorf x y)
     in
-      inline-graphics w h d render
+    let-rec itr x y a =
+      if y == hpx then a
+      else
+        let (nx, ny) =
+          if x + 1 == wpx then
+            (0, y + 1)
+          else 
+            (x + 1, y)
+        in
+          itr nx ny ((plot x y) :: a)
+    in
+      itr 0 0 []
+
+  let-inline ctx \Pixels (w, h, d) (wpx, hpx) colorf =
+    render-pixels (w, h, d) (wpx, hpx) colorf
+    |> inline-graphics w h d
+
 end
